@@ -5,9 +5,7 @@ app = Flask(__name__)
 
 
 import model
-
-
-events = {}
+import logic
 
 
 MAX_TITLE_LENGTH = 30
@@ -17,13 +15,25 @@ MAX_TEXT_LENGTH = 200
 class ApiException(Exception):
     pass
 
+events = {} 
+event_id_counter = 1
+
+def generate_event_id():
+    global event_id_counter
+    event_id = event_id_counter
+    event_id_counter += 1
+    return event_id
+
 
 def _from_raw(raw_event: str) -> model.Event:
     parts = raw_event.split('|')
-    if len(parts) == 2:
+    if len(parts) == 3:
         event = model.Event()
-        event.id = None
-        event.date = datetime.strptime(parts[0], '%Y-%m-%d').date()
+        event.id = generate_event_id()
+        try:
+            event.date = datetime.strptime(parts[0], '%Y-%m-%d').date()
+        except ValueError:
+            raise ApiException('Invalid date format. Please use the format YYYY-MM-DD.')
         event.title = str(parts[1])
         event.text = str(parts[2])
         return event
@@ -32,11 +42,7 @@ def _from_raw(raw_event: str) -> model.Event:
 
 
 def _to_raw(event: model.Event) -> str:
-    if event.id is None:
-        return f"{event.date}|{event.title}|{event.text}"
-    else:
-        return f"{event.date}|{event.title}|{event.text}"
-
+    return f"{event.date}|{event.title}|{event.text}"
 
 API_ROOT = "/api/v1/calendar/"
 EVENT_API_ROOT = API_ROOT + "/event"
@@ -55,7 +61,7 @@ def create():
         if event.date in events:
             raise ApiException('An event already exists for this date.')
 
-        events[event.date] = {'title': event.title, 'text': event.text}
+        events[event.id] = {'date': event.date, 'title': event.title, 'text': event.text}
         return jsonify({'message': 'Event created successfully.'}), 201
 
     except ApiException as e:
